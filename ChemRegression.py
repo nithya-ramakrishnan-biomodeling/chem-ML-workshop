@@ -44,6 +44,29 @@ def compute_descriptors(mol):
         Descriptors.NumHDonors(mol)
     ]
 
+def shap_explain(model, X_train_df, X_test_df):
+    features = (
+            [f"bit{i}-d" for i in range(2048)] +
+            [f"bit{i}-dp" for i in range(2048)] +
+            [f"bit{i}-s" for i in range(2048)] +
+            [
+                "homo_diene",
+                "LUMO_dienophile",
+                "Active_environment_polarity",
+
+                "Steric_index",
+                "Electrophilicity_index"
+            ]
+    )
+    X_train_df.columns = features
+    X_test_df.columns = features
+    explainer = shap.LinearExplainer(model, X_train_df)
+    print(explainer.expected_value)
+
+    shap_values = explainer.shap_values(X_test_df)
+    print(features)
+    explainer.feature_names=features
+    shap.summary_plot(shap_values, X_test_df, max_display=20)
 
 def obtain_X_y(data_file):
     dienes_sm=data_file['Diene_SMILES'].values
@@ -61,9 +84,9 @@ def obtain_X_y(data_file):
     DeltaG_dagger_endo_kcalmol=data_file['DeltaG_dagger_endo_kcalmol'].values
 
 
-    y=DeltaG_dagger_exo_kcalmol
-    plt.hist(y)
-    plt.show()
+    y=np.concatenate([(DeltaG_dagger_endo_kcalmol).reshape(-1,1), (DeltaG_dagger_exo_kcalmol).reshape(-1,1)],axis=1)
+
+
 
     X_diene=[];
     X_dienophile=[];
@@ -95,52 +118,25 @@ def obtain_X_y(data_file):
     X_diene_desc = np.array(X_diene)
     X_dienophile_desc = np.array(X_dienophile)
     X_solvent_desc = np.array(X_solvent)
-    #X = np.concatenate([X_diene, X_dienophile, X_solvent, X_dienophile_desc,X_diene_desc,X_solvent_desc,homo_diene.reshape(-1, 1), LUMO_dienophile.reshape(-1, 1),Active_environment_polarity.reshape(-1,1),
-     #                   Steric_index.reshape(-1, 1), Electrophilicity_index.reshape(-1, 1)], axis=1)
+    X = np.concatenate([X_diene, X_dienophile, X_solvent, homo_diene.reshape(-1, 1), LUMO_dienophile.reshape(-1, 1),Active_environment_polarity.reshape(-1,1),
+                        Steric_index.reshape(-1, 1), Electrophilicity_index.reshape(-1, 1)], axis=1)
 
-    X = np.concatenate(
-        [X_diene, X_dienophile, X_solvent,  homo_diene.reshape(-1, 1),
-         LUMO_dienophile.reshape(-1, 1), Active_environment_polarity.reshape(-1, 1),
-                           Steric_index.reshape(-1, 1), Electrophilicity_index.reshape(-1, 1)], axis=1)
-
-
+    # X = np.concatenate([X_diene, X_dienophile,np.array(temp).reshape(-1,1)],axis=1)
+    #
     print(X.shape)
     print(y.shape)
 
     return X,y
+#
+#y= y_logit
+#
 
-
-def shap_explain(model, X_train_df, X_test_df):
-    features = (
-            [f"bit{i}-d" for i in range(2048)] +
-            [f"bit{i}-dp" for i in range(2048)] +
-            [f"bit{i}-s" for i in range(2048)] +
-            [
-                "homo_diene",
-                "LUMO_dienophile",
-                "Active_environment_polarity",
-
-                "Steric_index",
-                "Electrophilicity_index"
-            ]
-    )
-    X_train_df.columns = features
-    X_test_df.columns = features
-    explainer = shap.LinearExplainer(model, X_train_df)
-    #print(explainer.expected_value)
-
-    shap_values = explainer.shap_values(X_test_df)
-    print(features)
-    explainer.feature_names=features
-    shap.summary_plot(shap_values, X_test_df, max_display=20)
+#print(X_diene.shape)
+#X = np.concatenate([X_diene, X_dienophile, X_solvent,X_diene_desc,X_dienophile_desc,X_solvent_desc,homo_diene.reshape(-1,1),LUMO_dienophile.reshape(-1,1),Steric_index.reshape(-1,1),Electrophilicity_index.reshape(-1,1),Active_environment_polarity.reshape(-1,1)],axis=1)
 
 
 def regression(X,y):
-    print(X.shape[1])
-    cols = [f"{i}" for i in range(X.shape[1])]
-    X_df = pd.DataFrame(X, columns=cols)
-    #X_df= pd.DataFrame(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_df, y, test_size=0.30, random_state=999)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=999)
     y_train = (y_train)
     y_test = (y_test)
     #
@@ -149,33 +145,44 @@ def regression(X,y):
     X_test_norm = scalar.transform(X_test)
     #
     model=LinearRegression()
-    #model = SVR(kernel='rbf',C=0.01)
-    #model = RandomForestRegressor()
-    #model=HistGradientBoostingRegressor()
-    #model = Ridge(alpha=1)
-    #model=Lasso(alpha=0.01)
+
     #
     model.fit(X_train_norm, y_train)
     y_test_pred = model.predict(X_test_norm)
     y_train_pred = model.predict(X_train_norm)
-
+    #
+    #
     r2_train = r2_score(y_train, y_train_pred)
     r2_test  = r2_score(y_test, y_test_pred)
-    mae = sklearn.metrics.mean_absolute_error(y_test, y_test_pred,  sample_weight=None, multioutput='uniform_average')
-    #rmse = sklearn.metrics.r
     r2 = r2_score(y_test, y_test_pred)
-    print("Train r2: ", r2_train)
-    print("Test r2: ", r2_test)
+    mae = sklearn.metrics.mean_absolute_error(y_test, y_test_pred, sample_weight=None, multioutput='uniform_average')
+    r2 = r2_score(y_test, y_test_pred)
+    #print("Train r2: ", r2_train)
+    #print("Test r2: ", r2_test)
     print("MAE", mae)
+
+    #print(y_test)
+    #print(y_test_pred)
+    # delta_delta_g_test=y_test[:,0]-y_test[:,1]
+    # print(delta_delta_g_test)
+    # delta_delta_g_pred=y_test_pred[:,0]-y_test_pred[:,1]
+    # print(delta_delta_g_pred)
+
+
+    plt.scatter(y_test.ravel(),y_test_pred.ravel())
+    plt.xlabel("Actual exo-endo")
+    plt.ylabel("Predicted exo-endo")
+    plt.title("Actual vs Predicted exo-endo")
+    plt.show()
+
+
+
+
     y_df = pd.DataFrame({
         "y_true": y_test.ravel(),
         "y_pred": y_test_pred.ravel()
     })
-    y_df.to_csv("exo_predicted_y.csv")
-
-
-
-    shap_explain(model, X_train, X_test)
+    y_df.to_csv("predicted_y.csv")
 
     return r2_train, r2_test
 
@@ -185,5 +192,7 @@ if __name__ == "__main__":
         data_file=load_csv("very_large_data.csv")
         X,y=obtain_X_y(data_file)
         r2_train,r2_test=regression(X,y)
+        print("Train r2: ",r2_train)
+        print("Test r2: ", r2_test)
 
 
