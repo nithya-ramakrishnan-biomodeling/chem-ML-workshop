@@ -9,7 +9,7 @@ from rdkit.Chem import Descriptors
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 import matplotlib.pyplot as plt
@@ -35,14 +35,14 @@ def smiles_to_ecfp(smiles, radius=2, nBits=2048):
     return np.array(fp)
 
 
-def compute_descriptors(mol):
-    return [
-        Descriptors.MolWt(mol),
-        Descriptors.TPSA(mol),
-        Descriptors.MolLogP(mol),
-        Descriptors.NumHAcceptors(mol),
-        Descriptors.NumHDonors(mol)
-    ]
+# def compute_descriptors(mol):
+#     return [
+#         Descriptors.MolWt(mol),
+#         Descriptors.TPSA(mol),
+#         Descriptors.MolLogP(mol),
+#         Descriptors.NumHAcceptors(mol),
+#         Descriptors.NumHDonors(mol)
+#     ]
 
 
 def obtain_X_y(data_file):
@@ -81,12 +81,12 @@ def obtain_X_y(data_file):
         X_solvent.append(smiles_to_ecfp(solvent_sm))
 
 
-    for diene_sm in dienes_sm:
-        X_diene_desc.append(compute_descriptors(Chem.MolFromSmiles(diene_sm)))
-    for dienophile_sm in dienophiles_sm:
-        X_dienophile_desc.append(compute_descriptors(Chem.MolFromSmiles(dienophile_sm)))
-    for solvent_sm in solvents_sm:
-        X_solvent_desc.append(compute_descriptors(Chem.MolFromSmiles(solvent_sm)))
+    # for diene_sm in dienes_sm:
+    #     X_diene_desc.append(compute_descriptors(Chem.MolFromSmiles(diene_sm)))
+    # for dienophile_sm in dienophiles_sm:
+    #     X_dienophile_desc.append(compute_descriptors(Chem.MolFromSmiles(dienophile_sm)))
+    # for solvent_sm in solvents_sm:
+    #     X_solvent_desc.append(compute_descriptors(Chem.MolFromSmiles(solvent_sm)))
 
     X_diene = np.array(X_diene)
     X_dienophile = np.array(X_dienophile)
@@ -177,6 +177,14 @@ def regression(X,y):
         "y_pred": y_test_pred.ravel()
     })
     y_df.to_csv("endo_predicted_y.csv")
+
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+    scores = cross_val_score(model, X, y, cv=kf, scoring='r2')
+
+    print(scores)
+    print("Mean R2 across 5 folds ",scores.mean())
+    print("Std of R2 across 5 folds ",scores.std())
 
 
 
