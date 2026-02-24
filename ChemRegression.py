@@ -9,7 +9,7 @@ from rdkit.Chem import Descriptors
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.metrics import r2_score
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 import matplotlib.pyplot as plt
@@ -61,7 +61,7 @@ def shap_explain(model, X_train_df, X_test_df):
     X_train_df.columns = features
     X_test_df.columns = features
     explainer = shap.LinearExplainer(model, X_train_df)
-    print(explainer.expected_value)
+    #print(explainer.expected_value)
 
     shap_values = explainer.shap_values(X_test_df)
     print(features)
@@ -136,9 +136,12 @@ def obtain_X_y(data_file):
 
 
 def regression(X,y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=999)
+    cols = [f"{i}" for i in range(X.shape[1])]
+    X_df = pd.DataFrame(X, columns=cols)
+    X_train, X_test, y_train, y_test = train_test_split(X_df, y, test_size=0.30, random_state=999)
     y_train = (y_train)
     y_test = (y_test)
+
     #
     scalar= StandardScaler()
     X_train_norm = scalar.fit_transform(X_train)
@@ -167,6 +170,15 @@ def regression(X,y):
     # print(delta_delta_g_test)
     # delta_delta_g_pred=y_test_pred[:,0]-y_test_pred[:,1]
     # print(delta_delta_g_pred)
+
+    #shap_explain(model, X_train, X_test)
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+    scores = cross_val_score(model, X, y, cv=kf, scoring='r2')
+
+    print(scores)
+    print("Mean R2 across 5 folds ",scores.mean())
+    print("Std of R2 across 5 folds ",scores.std())
 
 
     plt.scatter(y_test.ravel(),y_test_pred.ravel())
